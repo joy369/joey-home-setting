@@ -1,0 +1,57 @@
+FROM nvidia/cuda:12.9.0-cudnn-devel-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Taipei
+ENV LANG=en_US.UTF-8
+
+# Install packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        tzdata curl git htop fzf gnupg ripgrep sudo tmux tree\
+        universal-ctags lsb-release python3-pip python3.10 python3-venv && \
+    ln -sf /usr/bin/python3 /usr/bin/python && \
+    pip install --break-system-packages python-lsp-server && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create user
+ARG USER=joey
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g ${GID} ${USER} && \
+    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER ${USER}
+ENV HOME=/home/${USER}
+WORKDIR /home/${USER}
+
+# Clone dotfiles
+RUN git clone https://github.com/joy369/joey-home-setting.git && \
+    mv joey-home-setting/.config . && \
+    mv joey-home-setting/.bashrc . && \
+    mv joey-home-setting/.inputrc . && \
+    mv joey-home-setting/.tmux.conf . && \
+    rm -rf joey-home-setting
+
+# Install nvim (Detect Ubuntu version and set Neovim variables)
+RUN UBUNTU_VER=$(lsb_release -rs) && \
+    if [ "$UBUNTU_VER" = "20.04" ]; then \
+        echo "Using Neovim 0.10.0 for Ubuntu 20.04" && \
+        export NVIM_SUFFIX=nvim-linux64 && \
+        export NVIM_VER=v0.10.0 ; \
+    else \
+        echo "Using Neovim 0.11.2 for Ubuntu >= 22.04" && \
+        export NVIM_SUFFIX=nvim-linux-x86_64 && \
+        export NVIM_VER=v0.11.2 ; \
+    fi && \
+    curl -LO https://github.com/neovim/neovim/releases/download/${NVIM_VER}/${NVIM_SUFFIX}.tar.gz && \
+    tar -xzf ${NVIM_SUFFIX}.tar.gz && \
+    rm -f ${NVIM_SUFFIX}.tar.gz && \
+    ${NVIM_SUFFIX}/bin/nvim --headless --noplugin -u NONE -c 'source ~/.config/nvim/plugins_install.vim | PlugInstall --sync' +qa && \
+    ${NVIM_SUFFIX}/bin/nvim --headless -c 'lua require("nvim-treesitter.install").update({ with_sync = true })' +qa && \
+    sudo cp -r ${NVIM_SUFFIX}/bin/* /usr/local/bin && \
+    sudo cp -r ${NVIM_SUFFIX}/lib/* /usr/local/lib && \
+    sudo cp -r ${NVIM_SUFFIX}/share/* /usr/local/share && \
+    rm -rf ${NVIM_SUFFIX}
+
+CMD ["bash"]
