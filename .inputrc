@@ -1,0 +1,8 @@
+# Better search from history
+"\e[A":history-search-backward
+"\e[B":history-search-forward
+"\e\177":backward-kill-word
+"\e\b":backward-kill-word
+"\e^?":backward-kill-word
+ 
+set completion-ignore-case on
